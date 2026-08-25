@@ -1,0 +1,309 @@
+/* ============================================================
+   wiki.css — Wiki Page Viewer Styles
+   ============================================================ */
+
+/* ── Wiki Main Area ── */
+.wiki-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-bg);
+}
+
+.wiki-viewer-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* ── Wiki Viewer ── */
+.wiki-viewer {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: var(--spacing-xl) var(--spacing-2xl) var(--spacing-2xl);
+  animation: contentFade var(--duration-normal) var(--ease-default);
+}
+
+@keyframes contentFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Viewer Header ── */
+.wiki-viewer__header {
+  margin-bottom: var(--spacing-xl);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.wiki-viewer__meta {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.wiki-viewer__format-badge {
+  font-size: .7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  padding: .15em .5em;
+  border-radius: var(--radius-full);
+}
+
+.wiki-viewer__format-badge--markdown,
+.wiki-viewer__format-badge--md {
+  background: hsla(243,80%,62%,.15);
+  color: hsl(243,80%,72%);
+}
+
+.wiki-viewer__format-badge--rdoc {
+  background: hsla(158,64%,42%,.15);
+  color: hsl(158,64%,55%);
+}
+
+.wiki-viewer__format-badge--asciidoc {
+  background: hsla(38,95%,52%,.15);
+  color: hsl(38,95%,62%);
+}
+
+.wiki-viewer__format-badge--org {
+  background: hsla(270,70%,65%,.15);
+  color: hsl(270,70%,75%);
+}
+
+.wiki-viewer__title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.03em;
+  line-height: 1.2;
+}
+
+.wiki-viewer__actions {
+  margin-top: .75rem;
+  display: flex;
+  gap: .5rem;
+}
+
+/* ── Markdown Body ── */
+.markdown-body {
+  color: var(--text-primary);
+  font-size: .9375rem;
+  line-height: 1.8;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.02em;
+  margin: 1.75em 0 .625em;
+  line-height: 1.3;
+}
+
+.markdown-body h1 { font-size: 1.875rem; border-bottom: 2px solid var(--surface-border); padding-bottom: .375rem; }
+.markdown-body h2 { font-size: 1.5rem;   border-bottom: 1px solid var(--surface-border); padding-bottom: .25rem; }
+.markdown-body h3 { font-size: 1.25rem; }
+.markdown-body h4 { font-size: 1.0625rem; }
+.markdown-body h5,
+.markdown-body h6 { font-size: .9375rem; color: var(--text-secondary); }
+
+.markdown-body p {
+  margin: 0 0 1em;
+}
+
+.markdown-body a {
+  color: var(--text-link);
+  text-decoration: underline;
+  text-decoration-color: hsla(243,80%,72%,.4);
+  text-underline-offset: 2px;
+  transition: color var(--duration-fast), text-decoration-color var(--duration-fast);
+}
+.markdown-body a:hover {
+  color: var(--color-primary-hover);
+  text-decoration-color: var(--color-primary-hover);
+}
+
+.markdown-body strong { font-weight: 700; color: var(--text-primary); }
+.markdown-body em { font-style: italic; color: var(--text-secondary); }
+
+/* Inline code */
+.markdown-body code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: .82em;
+  padding: .15em .45em;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  border-radius: .3em;
+  color: var(--color-accent);
+}
+
+/* Code blocks */
+.markdown-body pre {
+  position: relative;
+  margin: 1.25em 0;
+  padding: 1.25em 1.5em;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.markdown-body pre code {
+  font-family: var(--font-mono);
+  font-size: .8375rem;
+  line-height: 1.7;
+  color: hsl(210, 20%, 85%);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* Blockquotes */
+.markdown-body blockquote {
+  margin: 1.25em 0;
+  padding: .75em 1.25em;
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-primary-dim);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.markdown-body blockquote p { margin: 0; }
+
+/* Lists */
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0 0 1em 1.5em;
+}
+
+.markdown-body ul { list-style-type: disc; }
+.markdown-body ul ul { list-style-type: circle; }
+.markdown-body ol { list-style-type: decimal; }
+
+.markdown-body li {
+  margin-bottom: .25em;
+}
+
+/* Horizontal rules */
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--surface-border);
+  margin: 2em 0;
+}
+
+/* Tables */
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25em 0;
+  font-size: .875rem;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-border);
+}
+
+.markdown-body thead {
+  background: var(--surface-2);
+}
+
+.markdown-body th {
+  padding: .625rem .875rem;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: .8125rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.markdown-body td {
+  padding: .5625rem .875rem;
+  border-bottom: 1px solid var(--surface-border);
+  vertical-align: top;
+}
+
+.markdown-body tbody tr:last-child td { border-bottom: none; }
+.markdown-body tbody tr:hover td { background: var(--surface-1); }
+
+/* Images */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-border);
+  margin: .75em 0;
+}
+
+/* Task lists (GFM) */
+.markdown-body input[type="checkbox"] {
+  margin-right: .375em;
+  accent-color: var(--color-primary);
+}
+
+/* ── Viewer Footer ── */
+.wiki-viewer__footer {
+  margin-top: var(--spacing-2xl);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--surface-border);
+}
+
+.wiki-viewer__footer-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem;
+  font-size: .75rem;
+  color: var(--text-muted);
+}
+
+.wiki-viewer__slug code {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+}
+
+/* ── Viewer states ── */
+.wiki-viewer--loading .wiki-viewer__header { margin-bottom: var(--spacing-lg); }
+.wiki-viewer--loading .wiki-viewer__body {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.wiki-viewer--error,
+.wiki-viewer--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--topbar-h) - 56px);
+}
+
+/* ── Raw content fallback ── */
+.wiki-viewer__raw-content {
+  font-family: var(--font-mono);
+  font-size: .8375rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  color: var(--text-secondary);
+}
+
+.wiki-viewer__no-content {
+  color: var(--text-muted);
+  font-style: italic;
+}
