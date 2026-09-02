@@ -18,6 +18,7 @@ const routes = new Map([
   [/^\/wiki\/([^/]+)$/,               { view: 'wiki',     auth: true  }],
   [/^\/wiki\/([^/]+)\/(.+)$/,         { view: 'wiki',     auth: true  }],
   [/^\/releases\/([^/]+)$/,            { view: 'releases', auth: true  }],
+  [/^\/support\/([^/]+)$/,             { view: 'support',  auth: true  }],
 ]);
 
 /** @type {{ view: string, params: string[], route: Object } | null} */

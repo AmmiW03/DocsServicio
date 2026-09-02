@@ -73,6 +73,7 @@ export class ProjectTree {
             ${hasWiki ? '' : '<span class="project-tree__badge project-tree__badge--no-wiki" title="Wiki deshabilitada">sin wiki</span>'}
           </button>
           ${hasWiki ? `<button type="button" class="project-tree__releases" title="Ver releases de ${escapeHtml(project.name)}" aria-label="Ver releases de ${escapeHtml(project.name)}">Releases</button>` : ''}
+          <button type="button" class="project-tree__support" title="Reportar un problema de ${escapeHtml(project.name)}" aria-label="Reportar un problema de ${escapeHtml(project.name)}">Soporte</button>
           </div>
         `;
 
@@ -90,6 +91,11 @@ export class ProjectTree {
             replace(`/releases/${project.id}`);
           });
         }
+
+        li.querySelector('.project-tree__support').addEventListener('click', (event) => {
+          event.stopPropagation();
+          replace(`/support/${project.id}`);
+        });
 
         list.appendChild(li);
       }

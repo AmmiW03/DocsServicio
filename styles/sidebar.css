@@ -229,6 +229,8 @@
 .project-tree__row .project-tree__btn { flex: 1; min-width: 0; }
 .project-tree__releases { flex-shrink: 0; margin-right: .65rem; padding: .3rem .5rem; border: 1px solid var(--surface-border); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: .68rem; transition: color var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast); }
 .project-tree__releases:hover { color: var(--text-link); border-color: var(--color-primary); background: var(--color-primary-dim); }
+.project-tree__support { flex-shrink: 0; margin-right: .65rem; padding: .3rem .5rem; border: 1px solid hsla(158, 64%, 42%, .45); border-radius: var(--radius-sm); color: var(--color-success); font-size: .68rem; transition: color var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast); }
+.project-tree__support:hover { color: #fff; border-color: var(--color-success); background: hsla(158, 64%, 42%, .2); }
 
 .project-tree__avatar {
   display: flex;
