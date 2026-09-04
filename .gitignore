@@ -3,3 +3,5 @@
 !.env.example
 node_modules/
 .DS_Store
+data/licenses/
+data/licenses.json

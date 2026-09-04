@@ -19,6 +19,7 @@
  */
 
 import { listPages, getPage, searchPages } from '../../api/wiki.js';
+import { listLicenses } from '../../api/licenses.js';
 import { getProject } from '../../api/projects.js';
 import { getCachedUser, logout } from '../../auth/session.js';
 import { setState, getState } from '../../store/state.js';
@@ -27,6 +28,7 @@ import { WikiPageList }    from '../components/WikiPageList.js';
 import { WikiPageViewer }  from '../components/WikiPageViewer.js';
 import { Breadcrumb }      from '../components/Breadcrumb.js';
 import { SearchBar }       from '../components/SearchBar.js';
+import { LicenseViewer }   from '../components/LicenseViewer.js';
 
 export class WikiView {
   /**
@@ -51,7 +53,9 @@ export class WikiView {
     this._renderShell();
     await this._loadProject();
     await this._loadPages();
-    if (this.pageSlug) {
+    if (this.pageSlug === 'licenses') {
+      await this._loadLicenses();
+    } else if (this.pageSlug) {
       await this._loadPage(this.pageSlug);
     } else {
       this._viewer.showPlaceholder();
@@ -109,6 +113,10 @@ export class WikiView {
             <div id="wiki-searchbar" class="wiki-sidebar__search"></div>
             <nav class="wiki-sidebar__nav" aria-label="Índice de páginas">
               <div id="wiki-page-list" class="wiki-page-list"></div>
+              <a class="wiki-sidebar__special-link" href="#/wiki/${encodeURIComponent(this.projectId)}/licenses" id="licenses-link">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4M8 12h8M8 16h6"/></svg>
+                Licencias
+              </a>
             </nav>
           </div>
         </aside>
@@ -154,6 +162,11 @@ export class WikiView {
     // Page selection
     document.getElementById('wiki-page-list')?.addEventListener('page-select', (e) => {
       this._loadPage(e.detail.page.slug);
+    });
+
+    document.getElementById('licenses-link')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      navigate(`/wiki/${encodeURIComponent(this.projectId)}/licenses`);
     });
 
     // Search
@@ -246,6 +259,22 @@ export class WikiView {
         window.history.replaceState(null, '', `${window.location.pathname}#${newHash}`);
       }
 
+    } catch (err) {
+      this._viewer.showError(err.message);
+    }
+  }
+
+  async _loadLicenses() {
+    this._pageList.setActive(null);
+    this._breadcrumb.render([
+      { label: 'Proyectos', path: '/projects' },
+      { label: this._project?.name || 'Proyecto', path: `/wiki/${this.projectId}` },
+      { label: 'Licencias' },
+    ]);
+
+    try {
+      const licenses = await listLicenses(this.projectId);
+      new LicenseViewer(document.getElementById('wiki-viewer'), this.projectId).render(licenses);
     } catch (err) {
       this._viewer.showError(err.message);
     }

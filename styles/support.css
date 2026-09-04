@@ -25,6 +25,7 @@
 .ticket-status--cerrado, .ticket-status--closed { background: hsla(158, 64%, 42%, .14); color: var(--color-success); }
 .support-empty, .support-loading { padding: 1.5rem 0; color: var(--text-secondary); }
 .support-chat { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 200; display: flex; flex-direction: column; width: min(460px, calc(100vw - 3rem)); max-height: calc(100dvh - 3rem); overflow: hidden; color: var(--text-primary); background: hsl(222, 20%, 13%); border: 1px solid hsl(222, 16%, 29%); border-radius: 1rem; box-shadow: 0 22px 60px hsla(0, 0%, 0%, .55), 0 0 0 1px hsla(158, 64%, 42%, .08); animation: chatPop .22s var(--ease-default) both; }
+.support-chat[hidden] { display: none; }
 .support-chat .support-section__heading { margin: 0; padding: 1rem 1.15rem; background: linear-gradient(120deg, hsl(222, 20%, 17%), hsl(222, 20%, 13%)); border-bottom: 1px solid var(--surface-border); }
 .support-chat .support-section__heading h2 { font-size: .95rem; font-weight: 600; }
 .support-chat .support-section__heading h2 { min-width: 0; overflow-wrap: anywhere; }

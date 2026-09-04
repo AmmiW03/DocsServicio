@@ -16,6 +16,8 @@ const zammadToken = process.env.ZAMMAD_TOKEN;
 const zammadGroupId = Number(process.env.ZAMMAD_GROUP_ID || 1);
 const zammadPortalUserId = Number(process.env.ZAMMAD_PORTAL_USER_ID || 0);
 const qaUsernames = new Set((process.env.SUPPORT_QA_USERNAMES || '').split(',').map((value) => value.trim()).filter(Boolean));
+const licensesFile = process.env.LICENSES_FILE || path.join(root, 'data', 'licenses.json');
+const licensesDirectory = path.resolve(process.env.LICENSES_DIRECTORY || path.join(root, 'data', 'licenses'));
 const isProduction = process.env.NODE_ENV === 'production';
 const sessions = new Map();
 const oauthStates = new Map();
@@ -102,6 +104,77 @@ async function authenticatedGitlabUser(session) {
     if (!upstream.ok) throw new Error('No fue posible obtener el usuario autenticado');
     return upstream.json();
   });
+}
+
+async function readLicenses() {
+  try {
+    const body = await fs.readFile(licensesFile, 'utf8');
+    const licenses = JSON.parse(body);
+    return Array.isArray(licenses) ? licenses : [];
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+async function projectLicenses(request, response, session, url) {
+  const match = url.pathname.match(/^\/api\/projects\/([^/]+)\/licenses(?:\/([^/]+)\/(preview|download))?$/);
+  if (!match) return sendJson(response, 404, { message: 'Ruta de licencias no encontrada' });
+
+  const [, rawProjectId, licenseId, action] = match;
+  const projectId = decodeURIComponent(rawProjectId);
+  const projectResponse = await fetch(`${gitlabUrl}/api/v4/projects/${encodeURIComponent(projectId)}`, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+  });
+  if (!projectResponse.ok) return sendJson(response, projectResponse.status === 404 ? 404 : 403, { message: 'Proyecto no encontrado o sin acceso' });
+
+  const gitlabUser = await authenticatedGitlabUser(session);
+  const licenses = (await readLicenses()).filter((license) =>
+    String(license.project_id) === String(projectId) && (
+      String(license.gitlab_user_id) === String(gitlabUser.id) ||
+      (license.gitlab_username && normalizeUsername(license.gitlab_username) === normalizeUsername(gitlabUser.username)) ||
+      (license.gitlab_user_id && normalizeUsername(license.gitlab_user_id) === normalizeUsername(gitlabUser.username))
+    )
+  );
+
+  if (!licenseId && request.method === 'GET') {
+    return sendJson(response, 200, licenses.map(({ storage_path, gitlab_user_id, gitlab_username, ...license }) => license));
+  }
+
+  if (request.method !== 'GET' || !licenseId || !action) {
+    return sendJson(response, 405, { message: 'Método no permitido' });
+  }
+
+  const license = licenses.find((item) => String(item.id) === String(licenseId));
+  if (!license) return sendJson(response, 404, { message: 'Licencia no encontrada' });
+
+  const filePath = path.resolve(licensesDirectory, license.storage_path || '');
+  if (!filePath.startsWith(`${licensesDirectory}${path.sep}`)) return sendJson(response, 403, { message: 'Archivo de licencia inválido' });
+
+  let file;
+  try {
+    file = await fs.readFile(filePath);
+  } catch (error) {
+    if (error.code === 'ENOENT') return sendJson(response, 404, { message: 'Documento de licencia no disponible' });
+    throw error;
+  }
+
+  response.writeHead(200, {
+    'Content-Type': license.mime_type || 'application/octet-stream',
+    'Content-Length': file.length,
+    'Content-Disposition': `${action === 'download' ? 'attachment' : 'inline'}; filename="${safeFilename(license.filename || 'licencia')}"`,
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, no-store',
+  });
+  response.end(file);
+}
+
+function safeFilename(filename) {
+  return path.basename(String(filename)).replace(/["\r\n]/g, '_') || 'licencia';
+}
+
+function normalizeUsername(username) {
+  return String(username || '').trim().replace(/^@+/, '').toLowerCase();
 }
 
 async function zammadCustomerForUser(gitlabUser) {
@@ -305,6 +378,12 @@ const server = http.createServer(async (request, response) => {
       const session = sessionFor(request);
       if (!session) return sendJson(response, 401, { message: 'Authentication required' });
       return supportRequest(request, response, session, url);
+    }
+
+    if (url.pathname.startsWith('/api/projects/') && url.pathname.includes('/licenses')) {
+      const session = sessionFor(request);
+      if (!session) return sendJson(response, 401, { message: 'Authentication required' });
+      return projectLicenses(request, response, session, url);
     }
 
     if (url.pathname.startsWith('/api/')) {

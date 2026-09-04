@@ -134,6 +134,26 @@ Variables disponibles:
 | `ZAMMAD_TOKEN` | Para soporte | Token de API de Zammad. Solo se lee en el servidor y nunca se envía al navegador. |
 | `ZAMMAD_GROUP_ID` | No | Grupo de Zammad para los tickets; por defecto `1`. Confírmalo con `/api/v1/groups`. |
 | `SUPPORT_QA_USERNAMES` | No | Usuarios GitLab separados por comas que pueden crear un ticket a nombre de otro correo. |
+| `LICENSES_FILE` | No | Archivo JSON privado con la asignación de licencias; por defecto `./data/licenses.json`. |
+| `LICENSES_DIRECTORY` | No | Carpeta privada donde viven los documentos; por defecto `./data/licenses`. |
+
+El archivo `LICENSES_FILE` usa un arreglo de registros. Puedes asignar una licencia con `gitlab_username` (el nombre visible en tu perfil GitLab) o con `gitlab_user_id`; `storage_path` es relativo a `LICENSES_DIRECTORY`:
+
+```json
+[
+	{
+		"id": "lic-001",
+		"project_id": 123,
+		"gitlab_username": "tu_usuario_gitlab",
+		"filename": "licencia.pdf",
+		"mime_type": "application/pdf",
+		"storage_path": "lic-001/licencia.pdf",
+		"expires_at": "2027-09-03"
+	}
+]
+```
+
+Los endpoints comprueban la sesión, el acceso del usuario al proyecto y la coincidencia de `gitlab_user_id` antes de listar, visualizar o descargar un documento. La carpeta de documentos debe permanecer fuera de los archivos estáticos públicos.
 
 ### Soporte y reportes
 
@@ -168,6 +188,7 @@ Registra exactamente la misma Redirect URI en GitLab. Usa HTTPS para que la cook
 - La búsqueda de wiki es local porque GitLab CE no ofrece un endpoint de búsqueda full-text de wiki usado por este cliente.
 - Las páginas `markdown` se renderizan; `rdoc`, `asciidoc` y `org` se muestran como texto preformateado.
 - La edición está preparada en `scripts/api/wiki.js`, pero requiere un editor y conectar sus eventos en `WikiView`.
+- La sección **Licencias** vive dentro de cada wiki y permite previsualizar PDF, imágenes y texto, además de descargar los documentos asignados al usuario autenticado.
 - No existen tests automatizados ni pipeline de build definidos en `package.json`; la verificación actual es manual y mediante los logs de diagnóstico.
 
 ## Diagnóstico

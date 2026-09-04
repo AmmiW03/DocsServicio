@@ -1,3 +1,18 @@
+.wiki-sidebar__special-link {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.wiki-sidebar__special-link:hover {
+  background: var(--surface-2);
+}
+
+.wiki-sidebar__special-link svg {
+  margin-right: 0.5rem;
+}
 /* ============================================================
    wiki.css — Wiki Page Viewer Styles
    ============================================================ */
@@ -306,4 +321,125 @@
 .wiki-viewer__no-content {
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* ── License viewer ── */
+.wiki-sidebar__special-link {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin: .75rem .5rem 0;
+  padding: .625rem .75rem;
+  border-top: 1px solid var(--surface-border);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.wiki-sidebar__special-link:hover {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.wiki-sidebar__special-link svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.license-viewer__intro {
+  margin: .5rem 0 0;
+  color: var(--text-secondary);
+}
+
+.license-viewer__layout {
+  display: grid;
+  grid-template-columns: minmax(12rem, 17rem) minmax(0, 1fr);
+  gap: var(--spacing-lg);
+}
+
+.license-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.license-list__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .3rem;
+  width: 100%;
+  padding: .75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.license-list__item:hover,
+.license-list__item--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-dim);
+}
+
+.license-list__item span,
+.license-preview__header p {
+  color: var(--text-muted);
+  font-size: .78rem;
+}
+
+.license-preview {
+  min-width: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.license-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .875rem 1rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.license-preview__header h2 {
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.license-preview__header p { margin: .25rem 0 0; }
+
+.license-preview__frame {
+  display: block;
+  width: 100%;
+  height: min(68vh, 50rem);
+  min-height: 28rem;
+  border: 0;
+  background: #fff;
+}
+
+.license-preview__unsupported {
+  display: grid;
+  place-items: center;
+  min-height: 18rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 760px) {
+  .license-viewer__layout { grid-template-columns: 1fr; }
+  .license-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+  .license-preview__header { align-items: flex-start; flex-direction: column; }
+  .license-preview__frame { min-height: 24rem; }
 }
