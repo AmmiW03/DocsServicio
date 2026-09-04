@@ -16,8 +16,15 @@ const zammadToken = process.env.ZAMMAD_TOKEN;
 const zammadGroupId = Number(process.env.ZAMMAD_GROUP_ID || 1);
 const zammadPortalUserId = Number(process.env.ZAMMAD_PORTAL_USER_ID || 0);
 const qaUsernames = new Set((process.env.SUPPORT_QA_USERNAMES || '').split(',').map((value) => value.trim()).filter(Boolean));
-const licensesFile = process.env.LICENSES_FILE || path.join(root, 'data', 'licenses.json');
-const licensesDirectory = path.resolve(process.env.LICENSES_DIRECTORY || path.join(root, 'data', 'licenses'));
+const adminUsernames = new Set((process.env.SUPPORT_ADMIN_USERNAMES || '').split(',').map((value) => value.trim()).filter(Boolean));
+const licenseStorageProject = String(process.env.GITLAB_LICENSES_PROJECT_ID || '').trim();
+const licenseStorageToken = process.env.GITLAB_LICENSES_TOKEN || '';
+const licenseStorageBranch = process.env.GITLAB_LICENSES_BRANCH || 'main';
+const licenseRegistryPath = 'licenses-registry.json';
+const maxLicenseBytes = 25 * 1024 * 1024;
+const maxAttachmentBytes = 15 * 1024 * 1024;
+const maxAttachmentsPerMessage = 4;
+const maxMultipartBytes = 40 * 1024 * 1024;
 const isProduction = process.env.NODE_ENV === 'production';
 const sessions = new Map();
 const oauthStates = new Map();
@@ -107,14 +114,21 @@ async function authenticatedGitlabUser(session) {
 }
 
 async function readLicenses() {
+  if (!licenseStorageProject || !licenseStorageToken) {
+    throw Object.assign(new Error('Almacenamiento GitLab de licencias no está configurado'), { status: 503 });
+  }
   try {
-    const body = await fs.readFile(licensesFile, 'utf8');
-    const licenses = JSON.parse(body);
-    return Array.isArray(licenses) ? licenses : [];
+    const buffer = await gitlabRepoFileRaw(licenseRegistryPath);
+    const parsed = JSON.parse(buffer.toString('utf8'));
+    return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    if (error.code === 'ENOENT') return [];
+    if (error.status === 404) return [];
     throw error;
   }
+}
+
+async function writeLicenses(licenses, commitMessage = 'Actualizar registro de licencias') {
+  await gitlabRepoFileUpsert(licenseRegistryPath, Buffer.from(JSON.stringify(licenses, null, 2), 'utf8'), commitMessage);
 }
 
 async function projectLicenses(request, response, session, url) {
@@ -138,7 +152,7 @@ async function projectLicenses(request, response, session, url) {
   );
 
   if (!licenseId && request.method === 'GET') {
-    return sendJson(response, 200, licenses.map(({ storage_path, gitlab_user_id, gitlab_username, ...license }) => license));
+    return sendJson(response, 200, licenses.map(({ storage_path, gitlab_user_id, gitlab_username, gitlab_file_path, ...license }) => license));
   }
 
   if (request.method !== 'GET' || !licenseId || !action) {
@@ -148,14 +162,16 @@ async function projectLicenses(request, response, session, url) {
   const license = licenses.find((item) => String(item.id) === String(licenseId));
   if (!license) return sendJson(response, 404, { message: 'Licencia no encontrada' });
 
-  const filePath = path.resolve(licensesDirectory, license.storage_path || '');
-  if (!filePath.startsWith(`${licensesDirectory}${path.sep}`)) return sendJson(response, 403, { message: 'Archivo de licencia inválido' });
-
   let file;
   try {
-    file = await fs.readFile(filePath);
+    if (license.storage_type === 'gitlab') {
+      if (!licenseStorageProject) return sendJson(response, 503, { message: 'Almacenamiento GitLab no configurado en el servidor' });
+      file = await gitlabRepoFileRaw(license.gitlab_file_path);
+    } else {
+      return sendJson(response, 404, { message: 'Documento de licencia no disponible' });
+    }
   } catch (error) {
-    if (error.code === 'ENOENT') return sendJson(response, 404, { message: 'Documento de licencia no disponible' });
+    if (error.status === 404) return sendJson(response, 404, { message: 'Documento de licencia no disponible en GitLab' });
     throw error;
   }
 
@@ -177,6 +193,187 @@ function normalizeUsername(username) {
   return String(username || '').trim().replace(/^@+/, '').toLowerCase();
 }
 
+function sanitizeStoredFilename(filename) {
+  const base = safeFilename(filename).replace(/\.[^.]+$/, '');
+  const clean = base.replace(/^\.+/, '').replace(/[^a-z0-9._-]+/gi, '_') || 'licencia';
+  return `${clean}.pdf`;
+}
+
+function parseMultipartFormData(body, contentType) {
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  const boundary = (boundaryMatch?.[1] || boundaryMatch?.[2] || '').trim();
+  if (!boundary) return { fields: {}, file: null, files: [] };
+
+  const delimiter = Buffer.from(`--${boundary}`);
+  const fields = {};
+  const files = [];
+  let file = null;
+  let cursor = 0;
+
+  while (cursor < body.length) {
+    const partStart = body.indexOf(delimiter, cursor);
+    if (partStart === -1) break;
+
+    const afterDelimiter = partStart + delimiter.length;
+    if (body[afterDelimiter] === 0x2d && body[afterDelimiter + 1] === 0x2d) break;
+
+    let contentStart = afterDelimiter;
+    if (body[contentStart] === 0x0d && body[contentStart + 1] === 0x0a) contentStart += 2;
+
+    const partEnd = body.indexOf(delimiter, contentStart);
+    if (partEnd === -1) break;
+
+    let part = body.subarray(contentStart, partEnd);
+    if (part.length >= 2 && part[part.length - 2] === 0x0d && part[part.length - 1] === 0x0a) {
+      part = part.subarray(0, part.length - 2);
+    }
+
+    const headerEnd = part.indexOf(Buffer.from('\r\n\r\n'));
+    if (headerEnd !== -1) {
+      const headerText = part.subarray(0, headerEnd).toString('utf8');
+      const content = part.subarray(headerEnd + 4);
+      const disposition = headerText.match(/content-disposition:\s*form-data;([\s\S]*)/i)?.[1] || '';
+      const fieldName = disposition.match(/name="([^"]*)"/i)?.[1];
+      const filename = disposition.match(/filename="([^"]*)"/i)?.[1];
+      const contentTypeHeader = headerText.match(/content-type:\s*([^\r\n]+)/i)?.[1]?.trim();
+
+      if (filename) {
+        const item = { field: fieldName, filename, contentType: contentTypeHeader || 'application/octet-stream', buffer: Buffer.from(content) };
+        files.push(item);
+        if (!file) file = item;
+      } else if (fieldName) {
+        fields[fieldName] = Buffer.from(content).toString('utf8').trim();
+      }
+    }
+
+    cursor = partEnd;
+  }
+
+  return { fields, file, files };
+}
+
+async function gitlabRepoFileUpsert(filePath, content, commitMessage) {
+  if (!licenseStorageProject || !licenseStorageToken) {
+    throw Object.assign(new Error('GITLAB_LICENSES_PROJECT_ID y GITLAB_LICENSES_TOKEN no están configurados'), { status: 503 });
+  }
+  const endpoint = `${gitlabUrl}/api/v4/projects/${encodeURIComponent(licenseStorageProject)}/repository/files/${encodeURIComponent(filePath)}`;
+  const authHeaders = { Authorization: `Bearer ${licenseStorageToken}` };
+  const existing = await fetch(`${endpoint}?ref=${encodeURIComponent(licenseStorageBranch)}`, { headers: authHeaders });
+  const method = existing.ok ? 'PUT' : 'POST';
+  const upstream = await fetch(endpoint, {
+    method,
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      branch: licenseStorageBranch,
+      content: content.toString('base64'),
+      encoding: 'base64',
+      commit_message: commitMessage,
+    }),
+  });
+  if (!upstream.ok) {
+    const body = await upstream.json().catch(() => ({}));
+    throw Object.assign(new Error(body.message || body.error || `GitLab respondió ${upstream.status}`), { status: upstream.status });
+  }
+  return upstream.json();
+}
+
+async function gitlabRepoFileCreate(filePath, content, commitMessage) {
+  if (!licenseStorageProject || !licenseStorageToken) {
+    throw Object.assign(new Error('GITLAB_LICENSES_PROJECT_ID y GITLAB_LICENSES_TOKEN no están configurados'), { status: 503 });
+  }
+  const upstream = await fetch(
+    `${gitlabUrl}/api/v4/projects/${encodeURIComponent(licenseStorageProject)}/repository/files/${encodeURIComponent(filePath)}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${licenseStorageToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        branch: licenseStorageBranch,
+        content: content.toString('base64'),
+        encoding: 'base64',
+        commit_message: commitMessage,
+      }),
+    }
+  );
+  if (!upstream.ok) {
+    const body = await upstream.json().catch(() => ({}));
+    throw Object.assign(new Error(body.message || body.error || `GitLab respondió ${upstream.status}`), { status: upstream.status });
+  }
+  return upstream.json();
+}
+
+async function gitlabRepoFileRaw(filePath) {
+  if (!licenseStorageProject || !licenseStorageToken) {
+    throw Object.assign(new Error('GITLAB_LICENSES_PROJECT_ID y GITLAB_LICENSES_TOKEN no están configurados'), { status: 503 });
+  }
+  const upstream = await fetch(
+    `${gitlabUrl}/api/v4/projects/${encodeURIComponent(licenseStorageProject)}/repository/files/${encodeURIComponent(filePath)}/raw?ref=${encodeURIComponent(licenseStorageBranch)}`,
+    { headers: { Authorization: `Bearer ${licenseStorageToken}` } }
+  );
+  if (!upstream.ok) {
+    const body = await upstream.json().catch(() => ({}));
+    throw Object.assign(new Error(body.message || body.error || `GitLab respondió ${upstream.status}`), { status: upstream.status });
+  }
+  return Buffer.from(await upstream.arrayBuffer());
+}
+
+async function isAdmin(session) {
+  if (!adminUsernames.size) return false;
+  const gitlabUser = await authenticatedGitlabUser(session);
+  return adminUsernames.has(gitlabUser.username);
+}
+
+async function adminUploadLicense(request, response, session) {
+  if (!licenseStorageProject) {
+    return sendJson(response, 503, { message: 'GITLAB_LICENSES_PROJECT_ID no está configurado en el servidor' });
+  }
+
+  const contentType = request.headers['content-type'] || '';
+  if (!contentType.toLowerCase().includes('multipart/form-data')) {
+    return sendJson(response, 400, { message: 'El formulario debe enviarse como multipart/form-data' });
+  }
+
+  const body = await readBody(request);
+  if (body.length > maxLicenseBytes) {
+    return sendJson(response, 413, { message: 'El archivo supera el tamaño máximo permitido (25 MB)' });
+  }
+
+  const { fields, file } = parseMultipartFormData(body, contentType);
+  const projectId = String(fields.project_id || '').trim();
+  const username = String(fields.gitlab_username || '').trim();
+  const expiresAt = String(fields.expires_at || '').trim() || null;
+
+  if (!projectId) return sendJson(response, 400, { message: 'El proyecto es obligatorio' });
+  if (!username) return sendJson(response, 400, { message: 'El username de GitLab del cliente es obligatorio' });
+  if (!file) return sendJson(response, 400, { message: 'Debes adjuntar un archivo PDF' });
+  if (file.contentType && !file.contentType.toLowerCase().includes('application/pdf') && !String(file.filename).toLowerCase().endsWith('.pdf')) {
+    return sendJson(response, 400, { message: 'Solo se aceptan archivos PDF' });
+  }
+  if (!file.buffer.length) return sendJson(response, 400, { message: 'El archivo está vacío' });
+
+  const storedFilename = sanitizeStoredFilename(file.filename);
+  const gitlabFilePath = `${projectId}/${Date.now()}-${storedFilename}`;
+
+  const gitlabUser = await authenticatedGitlabUser(session);
+  await gitlabRepoFileCreate(gitlabFilePath, file.buffer, `Añadir licencia PDF para ${username} en proyecto ${projectId}`);
+
+  const licenses = await readLicenses();
+  const license = {
+    id: `lic-${crypto.randomBytes(8).toString('hex')}`,
+    project_id: projectId,
+    gitlab_username: username,
+    filename: storedFilename,
+    mime_type: 'application/pdf',
+    storage_type: 'gitlab',
+    gitlab_file_path: gitlabFilePath,
+    expires_at: expiresAt,
+    created_at: new Date().toISOString(),
+    created_by: gitlabUser.username,
+  };
+  licenses.push(license);
+  await writeLicenses(licenses, `Registrar licencia ${storedFilename} para ${username}`);
+  return sendJson(response, 201, license);
+}
+
 async function zammadCustomerForUser(gitlabUser) {
   const email = gitlabUser.email || gitlabUser.public_email;
   if (!email) throw Object.assign(new Error('Tu usuario de GitLab no tiene un correo disponible'), { status: 422 });
@@ -191,6 +388,93 @@ async function ticketBelongsToUser(ticketId, customerId) {
 
 function ticketStateName(ticket) {
   return typeof ticket.state === 'object' ? ticket.state?.name : ticket.state;
+}
+
+async function parsePayload(request, contentType, maxBytes = maxMultipartBytes) {
+  if (contentType.toLowerCase().includes('multipart/form-data')) {
+    const body = await readBody(request);
+    if (body.length > maxBytes) throw Object.assign(new Error('La solicitud supera el tamaño máximo permitido'), { status: 413 });
+    return parseMultipartFormData(body, contentType);
+  }
+  const parsed = JSON.parse((await readBody(request)).toString() || '{}');
+  return { fields: parsed, file: null, files: [] };
+}
+
+const allowedAttachmentMimes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf']);
+
+function isAllowedAttachment(mimeType, filename) {
+  if (allowedAttachmentMimes.has(String(mimeType || '').toLowerCase())) return true;
+  return /\.(png|jpe?g|gif|webp|pdf)$/i.test(String(filename || ''));
+}
+
+function normalizeAttachmentMime(mimeType) {
+  const mime = String(mimeType || '').toLowerCase();
+  if (mime === 'image/jpg') return 'image/jpeg';
+  return mime || 'application/octet-stream';
+}
+
+function toZammadAttachments(files) {
+  const list = Array.isArray(files) ? files : [];
+  if (list.length > maxAttachmentsPerMessage) {
+    throw Object.assign(new Error(`Máximo ${maxAttachmentsPerMessage} archivos adjuntos por mensaje`), { status: 400 });
+  }
+  return list.map((file) => {
+    const mimeType = normalizeAttachmentMime(file.contentType);
+    if (!isAllowedAttachment(mimeType, file.filename)) {
+      throw Object.assign(new Error('Formato de adjunto no permitido. Usa imágenes JPG, PNG, GIF, WebP o PDF.'), { status: 400 });
+    }
+    if (!file.buffer.length) {
+      throw Object.assign(new Error('El archivo adjunto está vacío'), { status: 400 });
+    }
+    if (file.buffer.length > maxAttachmentBytes) {
+      throw Object.assign(new Error('Cada adjunto supera el límite de 15 MB'), { status: 413 });
+    }
+    return { filename: String(file.filename || 'adjunto').slice(0, 255), data: file.buffer.toString('base64'), 'mime-type': mimeType };
+  });
+}
+
+function zammadFieldValue(value) {
+  if (typeof value === 'object' && value !== null) return value.value ?? value.label ?? '';
+  return String(value ?? '');
+}
+
+async function gitlabProjectLookup(projectId, session) {
+  const upstream = await fetch(`${gitlabUrl}/api/v4/projects/${encodeURIComponent(projectId)}`, {
+    headers: { Authorization: `Bearer ${session.accessToken}` },
+  });
+  if (!upstream.ok) return null;
+  const project = await upstream.json();
+  return { name: String(project.name || ''), path: String(project.path_with_namespace || '') };
+}
+
+function ticketMatchesProject(ticket, project) {
+  const sistema = zammadFieldValue(ticket.sistema || ticket.system).toLowerCase();
+  if (!sistema) return false;
+  return sistema === String(project.name).toLowerCase() || sistema === String(project.path).toLowerCase();
+}
+
+function mapSupportTicket(ticket) {
+  return {
+    id: ticket.id, number: ticket.number, title: ticket.title, state: ticketStateName(ticket),
+    state_id: ticket.state_id, priority: ticket.priority, created_at: ticket.created_at, updated_at: ticket.updated_at,
+  };
+}
+
+async function streamZammadAttachment(response, ticketId, articleId, attachmentId) {
+  const upstream = await fetch(`${zammadUrl}/api/v1/ticket_attachment/${ticketId}/${articleId}/${attachmentId}`, {
+    headers: { Authorization: `Token token=${zammadToken}` },
+  });
+  if (!upstream.ok) return sendJson(response, upstream.status === 404 ? 404 : 502, { message: 'Adjunto no disponible' });
+  const buffer = Buffer.from(await upstream.arrayBuffer());
+  const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+  const disposition = upstream.headers.get('content-disposition') || '';
+  response.writeHead(200, {
+    'Content-Type': contentType,
+    'Content-Length': buffer.length,
+    'Cache-Control': 'private, no-store',
+    ...(disposition ? { 'Content-Disposition': disposition } : {}),
+  });
+  response.end(buffer);
 }
 
 function articleOwner(article, customerId) {
@@ -211,10 +495,20 @@ async function supportRequest(request, response, session, url) {
 
   if (url.pathname === '/api/support/tickets' && request.method === 'GET') {
     const tickets = await zammadRequest(`/tickets/search?query=customer_id:${customer.id}&limit=100&expand=true`);
-    return sendJson(response, 200, Array.isArray(tickets) ? tickets.map((ticket) => ({
-      id: ticket.id, number: ticket.number, title: ticket.title, state: ticketStateName(ticket),
-      state_id: ticket.state_id, priority: ticket.priority, created_at: ticket.created_at, updated_at: ticket.updated_at,
-    })) : []);
+    const projectId = url.searchParams.get('project');
+    if (!projectId) return sendJson(response, 200, []);
+    const project = await gitlabProjectLookup(projectId, session);
+    if (!project) return sendJson(response, 200, []);
+    const owned = Array.isArray(tickets) ? tickets.filter((ticket) => ticketMatchesProject(ticket, project)) : [];
+    return sendJson(response, 200, owned.map(mapSupportTicket));
+  }
+
+  const attachmentMatch = url.pathname.match(/^\/api\/support\/tickets\/(\d+)\/articles\/(\d+)\/attachments\/(\d+)$/);
+  if (attachmentMatch && request.method === 'GET') {
+    const [, ticketId, articleId, attachmentId] = attachmentMatch;
+    const ticket = await ticketBelongsToUser(ticketId, customer.id);
+    if (!ticket) return sendJson(response, 404, { message: 'Ticket no encontrado' });
+    return streamZammadAttachment(response, ticketId, articleId, attachmentId);
   }
 
   const ticketMatch = url.pathname.match(/^\/api\/support\/tickets\/(\d+)(?:\/(articles|reply|reopen))?$/);
@@ -228,15 +522,26 @@ async function supportRequest(request, response, session, url) {
     return sendJson(response, 200, Array.isArray(articles) ? articles.filter((article) => !article.internal).map((article) => ({
       id: article.id, subject: article.subject, body: article.body, from: article.from,
       owner: articleOwner(article, customer.id), created_at: article.created_at,
+      attachments: Array.isArray(article.attachments) ? article.attachments.map((attachment) => ({
+        id: attachment.id, filename: attachment.filename || '', size: attachment.size,
+        mimeType: typeof attachment.preferences === 'object' && attachment.preferences
+          ? attachment.preferences['Mime-Type'] || attachment.preferences.mime_type || ''
+          : '',
+      })) : [],
     })) : []);
   }
 
   if (action === 'reply' && request.method === 'POST') {
     if (String(ticketStateName(ticket)).toLowerCase() === 'closed' || String(ticketStateName(ticket)).toLowerCase() === 'cerrado') return sendJson(response, 409, { message: 'Un ticket cerrado debe reabrirse con un motivo' });
-    const payload = JSON.parse((await readBody(request)).toString() || '{}');
-    const body = typeof payload.body === 'string' ? payload.body.trim() : '';
+    const contentType = request.headers['content-type'] || '';
+    const { fields, files } = await parsePayload(request, contentType);
+    const body = typeof fields.body === 'string' ? fields.body.trim() : typeof fields.message === 'string' ? fields.message.trim() : '';
     if (!body) return sendJson(response, 400, { message: 'El mensaje es obligatorio' });
-    const article = await zammadRequest('/ticket_articles', 'POST', { ticket_id: Number(ticketId), body, type: 'note', internal: false });
+    let attachments = [];
+    if (files && files.length) attachments = toZammadAttachments(files);
+    const payload = { ticket_id: Number(ticketId), body, type: 'note', internal: false };
+    if (attachments.length) payload.attachments = attachments;
+    const article = await zammadRequest('/ticket_articles', 'POST', payload);
     return sendJson(response, 201, article);
   }
 
@@ -259,12 +564,13 @@ async function createZammadTicket(request, response, session, allowTarget = fals
     return sendJson(response, 503, { message: 'El soporte no está configurado en el servidor' });
   }
 
-  const payload = JSON.parse((await readBody(request)).toString() || '{}');
-  const title = typeof payload.title === 'string' ? payload.title.trim() : '';
-  const body = typeof payload.body === 'string' ? payload.body.trim() : '';
-  const system = typeof payload.system === 'string' ? payload.system.trim() : '';
-  const targetEmail = typeof payload.targetEmail === 'string' ? payload.targetEmail.trim().toLowerCase() : '';
-  const priorityId = Number(payload.priorityId);
+  const contentType = request.headers['content-type'] || '';
+  const { fields, files } = await parsePayload(request, contentType);
+  const title = typeof fields.title === 'string' ? fields.title.trim() : '';
+  const body = typeof fields.body === 'string' ? fields.body.trim() : '';
+  const system = typeof fields.system === 'string' ? fields.system.trim() : '';
+  const targetEmail = typeof fields.targetEmail === 'string' ? fields.targetEmail.trim().toLowerCase() : '';
+  const priorityId = Number(fields.priorityId);
   if (!title || !body || !system || !Number.isInteger(priorityId)) {
     return sendJson(response, 400, { message: 'Asunto, sistema, prioridad y descripción son obligatorios' });
   }
@@ -287,12 +593,16 @@ async function createZammadTicket(request, response, session, allowTarget = fals
     });
   }
 
+  const article = { subject: 'Reporte de defecto', body, type: 'note', internal: false };
+  const attachments = files && files.length ? toZammadAttachments(files) : [];
+  if (attachments.length) article.attachments = attachments;
+
   const ticket = await zammadRequest('/tickets', 'POST', {
     title,
     group_id: zammadGroupId,
     customer_id: customer.id,
     priority_id: priorityId,
-    article: { subject: 'Reporte de defecto', body, type: 'note', internal: false },
+    article,
     sistema: system,
   });
   return sendJson(response, 201, { id: ticket.id, number: ticket.number });
@@ -386,6 +696,19 @@ const server = http.createServer(async (request, response) => {
       return projectLicenses(request, response, session, url);
     }
 
+    if (url.pathname === '/api/admin/check') {
+      const session = sessionFor(request);
+      if (!session) return sendJson(response, 401, { message: 'Authentication required' });
+      return sendJson(response, 200, { admin: await isAdmin(session) });
+    }
+
+    if (url.pathname === '/api/admin/licenses' && request.method === 'POST') {
+      const session = sessionFor(request);
+      if (!session) return sendJson(response, 401, { message: 'Authentication required' });
+      if (!(await isAdmin(session))) return sendJson(response, 403, { message: 'Acceso restringido a administradores' });
+      return adminUploadLicense(request, response, session);
+    }
+
     if (url.pathname.startsWith('/api/')) {
       const session = sessionFor(request);
       if (!session) return sendJson(response, 401, { message: 'Authentication required' });
@@ -395,7 +718,8 @@ const server = http.createServer(async (request, response) => {
     return serveStatic(response, url.pathname);
   } catch (error) {
     console.error(error);
-    sendJson(response, 500, { message: 'Internal server error' });
+    const status = error.status && error.status >= 400 && error.status < 600 ? error.status : 500;
+    sendJson(response, status, { message: error.message || 'Internal server error' });
   }
 });
 

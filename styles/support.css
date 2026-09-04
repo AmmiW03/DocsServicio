@@ -42,12 +42,28 @@
 .chat-message__body ul, .chat-message__body ol { margin: .4rem 0 .4rem 1.2rem; }
 .chat-message time { display: block; margin-top: .45rem; color: hsl(220, 10%, 48%); font-size: .7rem; }
 .chat-message--customer time { color: hsla(0, 0%, 100%, .72); }
-.chat-form { display: flex; align-items: flex-end; gap: .55rem; padding: .8rem; background: hsl(222, 20%, 13%); border-top: 1px solid var(--surface-border); }
+.chat-form { display: flex; flex-direction: column; gap: .5rem; padding: .8rem; background: hsl(222, 20%, 13%); border-top: 1px solid var(--surface-border); }
+.chat-form__row { display: flex; align-items: flex-end; gap: .55rem; }
+.chat-form__attach { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 42px; height: 42px; color: var(--text-secondary); background: hsl(222, 18%, 18%); border: 1px solid hsl(222, 16%, 30%); border-radius: var(--radius-md); cursor: pointer; }
+.chat-form__attach:hover { color: var(--text-primary); border-color: var(--color-primary); }
+.chat-form__attach svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; fill: none; }
 .chat-form textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 120px; padding: .7rem .85rem; color: var(--text-primary); background: hsl(222, 18%, 18%); border: 1px solid hsl(222, 16%, 30%); border-radius: .7rem; font: inherit; resize: vertical; }
 .chat-form textarea::placeholder { color: var(--text-muted); }
 .chat-form textarea:focus { border-color: var(--color-primary); outline: none; box-shadow: 0 0 0 3px var(--color-primary-dim); }
 .chat-form .btn { align-self: stretch; padding: .5rem .75rem; border: 1px solid var(--color-primary); border-radius: .7rem; color: var(--text-primary); background: var(--surface-3); }
 .chat-form .btn:hover { color: #fff; background: var(--color-primary); }
+.chat-attachments { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; }
+.chat-attachments[hidden] { display: none; }
+.chat-attachment-pill { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: .25rem .8rem .25rem .7rem; font-size: .75rem; color: var(--text-secondary); background: var(--surface-2); border: 1px solid var(--surface-border); border-radius: var(--radius-full); }
+.chat-attachment-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-attachment-pill button { display: flex; align-items: center; justify-content: center; width: 1.1rem; height: 1.1rem; border-radius: 50%; color: var(--text-muted); background: transparent; line-height: 1; }
+.chat-attachment-pill button:hover { color: var(--color-danger); background: var(--surface-3); }
+.chat-attachment-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+.chat-message--customer .chat-attachment-list { justify-content: flex-end; }
+.chat-attachment--image { flex: 0 1 auto; max-width: 220px; }
+.chat-attachment--image img { width: 100%; max-height: 150px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--surface-border); display: block; }
+.chat-attachment--file { display: inline-flex; align-items: center; gap: .4rem; max-width: 100%; padding: .4rem .7rem; font-size: .75rem; color: var(--text-secondary); background: hsl(222, 18%, 20%); border: 1px solid hsl(222, 16%, 30%); border-radius: var(--radius-md); overflow-wrap: anywhere; text-decoration: none; }
+.chat-attachment--file::before { content: ''; width: .9rem; height: .9rem; flex-shrink: 0; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'/%3E%3C/svg%3E") center/contain no-repeat; }
 .support-chat .support-loading, .support-chat .support-form__status { margin: 0; padding: 2rem 1rem; background: hsl(222, 20%, 10%); }
 .support-chat .chat-closed { max-height: 45dvh; margin: 0; overflow-y: auto; border: 0; border-top: 1px solid var(--surface-border); border-radius: 0; }
 @keyframes chatPop { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }

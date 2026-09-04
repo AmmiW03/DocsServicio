@@ -134,10 +134,12 @@ Variables disponibles:
 | `ZAMMAD_TOKEN` | Para soporte | Token de API de Zammad. Solo se lee en el servidor y nunca se envía al navegador. |
 | `ZAMMAD_GROUP_ID` | No | Grupo de Zammad para los tickets; por defecto `1`. Confírmalo con `/api/v1/groups`. |
 | `SUPPORT_QA_USERNAMES` | No | Usuarios GitLab separados por comas que pueden crear un ticket a nombre de otro correo. |
-| `LICENSES_FILE` | No | Archivo JSON privado con la asignación de licencias; por defecto `./data/licenses.json`. |
-| `LICENSES_DIRECTORY` | No | Carpeta privada donde viven los documentos; por defecto `./data/licenses`. |
+| `SUPPORT_ADMIN_USERNAMES` | Para licencias | Usuarios GitLab separados por comas que pueden subir licencias desde el panel de administración. |
+| `GITLAB_LICENSES_PROJECT_ID` | Para licencias | ID del repositorio privado donde se almacenan los PDF y el registro de licencias. |
+| `GITLAB_LICENSES_TOKEN` | Para licencias | Token de servidor (project access token con `read_repository` y `write_repository`) para leer y escribir el repositorio de licencias. Nunca se envía al navegador. |
+| `GITLAB_LICENSES_BRANCH` | No | Rama del repositorio de licencias; por defecto `main`. |
 
-El archivo `LICENSES_FILE` usa un arreglo de registros. Puedes asignar una licencia con `gitlab_username` (el nombre visible en tu perfil GitLab) o con `gitlab_user_id`; `storage_path` es relativo a `LICENSES_DIRECTORY`:
+Las licencias se guardan íntegramente en un repositorio privado de GitLab: el panel de administración sube cada PDF y mantiene un registro `licenses-registry.json` (comprometido en la raíz del mismo repositorio) que asocia cada documento a un `project_id` y a un `gitlab_username`:
 
 ```json
 [
@@ -147,19 +149,24 @@ El archivo `LICENSES_FILE` usa un arreglo de registros. Puedes asignar una licen
 		"gitlab_username": "tu_usuario_gitlab",
 		"filename": "licencia.pdf",
 		"mime_type": "application/pdf",
-		"storage_path": "lic-001/licencia.pdf",
+		"storage_type": "gitlab",
+		"gitlab_file_path": "123/1693845123-licencia.pdf",
 		"expires_at": "2027-09-03"
 	}
 ]
 ```
 
-Los endpoints comprueban la sesión, el acceso del usuario al proyecto y la coincidencia de `gitlab_user_id` antes de listar, visualizar o descargar un documento. La carpeta de documentos debe permanecer fuera de los archivos estáticos públicos.
+El registro lo actualiza también el servidor mediante `GITLAB_LICENSES_TOKEN`, por lo que ni el admin ni el cliente necesitan acceso directo al repositorio de licencias. Los endpoints comprueban la sesión, el acceso del usuario al proyecto y la coincidencia de `gitlab_username` (o `gitlab_user_id`, en formatos antiguos) antes de listar, visualizar o descargar un documento.
 
 ### Soporte y reportes
 
 Cada proyecto muestra un botón **Soporte** junto a **Releases**. El formulario usa el correo del usuario autenticado en GitLab, no un correo introducido por el navegador. El servidor busca o crea el cliente en Zammad y crea el ticket en `POST /api/v1/tickets`, enviando el proyecto como el campo personalizado `sistema`.
 
-La vista también muestra los tickets del usuario, su estado y una conversación con soporte. Los mensajes se guardan como artículos públicos del ticket; un ticket cerrado se reabre mediante el motivo obligatorio definido por Zammad. Para que QA levante un ticket a nombre de un usuario, agrega su `username` de GitLab a `SUPPORT_QA_USERNAMES`; el servidor rechaza cualquier correo destinatario enviado por usuarios no autorizados.
+Los tickets son **por proyecto y por cliente**: el listado filtra por el campo `sistema` del ticket contra el proyecto visitado, de modo que un reporte creado para un proyecto no aparece en otro.
+
+La vista también muestra los tickets del usuario, su estado y una conversación con soporte. Tanto la creación del reporte como los mensajes del chat admiten **evidencia adjunta** (imágenes JPG, PNG, GIF, WebP o PDF): el navegador envía los archivos en `multipart/form-data` al backend, que los convierte a base64 y los entrega a la API de Zammad como `attachments` del artículo. Las imágenes se muestran en miniatura en la conversación y el resto de adjuntos como enlace de descarga.
+
+Un ticket cerrado se reabre mediante el motivo obligatorio definido por Zammad. Para que QA levante un ticket a nombre de un usuario, agrega su `username` de GitLab a `SUPPORT_QA_USERNAMES`; el servidor rechaza cualquier correo destinatario enviado por usuarios no autorizados.
 
 Configura `ZAMMAD_URL`, `ZAMMAD_TOKEN` y `ZAMMAD_GROUP_ID` en `.env`. El `priority_id` usado por el formulario debe coincidir con los catálogos del ambiente de Zammad; revisa `/api/v1/ticket_priorities` antes de producción y ajusta los valores del formulario si son distintos.
 

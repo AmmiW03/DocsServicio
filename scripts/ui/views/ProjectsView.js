@@ -5,6 +5,7 @@
  */
 
 import { listProjects } from '../../api/projects.js';
+import { checkAdmin } from '../../api/licenses.js';
 import { getCachedUser, logout, isTokenExpired } from '../../auth/session.js';
 import { setState, getState } from '../../store/state.js';
 import { navigate } from '../router.js';
@@ -26,7 +27,7 @@ export class ProjectsView {
 
   async init() {
     this._render();
-    await this._loadProjects();
+    await Promise.all([this._loadProjects(), this._maybeShowAdminLink()]);
   }
 
   _render() {
@@ -156,6 +157,22 @@ export class ProjectsView {
     if (btn) { btn.disabled = true; btn.textContent = 'Saliendo…'; }
     await logout();
     navigate('/auth');
+  }
+
+  async _maybeShowAdminLink() {
+    try {
+      const admin = await checkAdmin();
+      if (!admin) return;
+      const actions = this.container.querySelector('.topbar__actions');
+      if (!actions) return;
+      const link = document.createElement('button');
+      link.className = 'btn btn--ghost btn--sm';
+      link.id = 'admin-link';
+      link.setAttribute('aria-label', 'Administrar licencias');
+      link.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>Administrar licencias';
+      link.addEventListener('click', () => navigate('/admin/licenses'));
+      actions.insertBefore(link, actions.firstChild);
+    } catch { }
   }
 }
 

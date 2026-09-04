@@ -15,6 +15,7 @@ import { isAuthenticated } from '../auth/session.js';
 const routes = new Map([
   [/^\/auth$/,                        { view: 'auth',     auth: false }],
   [/^\/projects$/,                    { view: 'projects', auth: true  }],
+  [/^\/admin\/licenses$/,             { view: 'admin-licenses', auth: true }],
   [/^\/wiki\/([^/]+)$/,               { view: 'wiki',     auth: true  }],
   [/^\/wiki\/([^/]+)\/(.+)$/,         { view: 'wiki',     auth: true  }],
   [/^\/releases\/([^/]+)$/,            { view: 'releases', auth: true  }],

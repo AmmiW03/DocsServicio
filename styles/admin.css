@@ -1,0 +1,17 @@
+.admin-view { min-height: 100vh; overflow-y: auto; background: radial-gradient(circle at 80% 0%, hsla(243, 80%, 62%, .12), transparent 34rem), var(--surface-bg); }
+.admin-main { max-width: 720px; margin: 0 auto; padding: 3.5rem var(--spacing-xl) 5rem; }
+.admin-heading { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--surface-border); }
+.admin-eyebrow { color: var(--color-primary); font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.admin-heading h1 { margin-top: .45rem; font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.05; }
+.admin-heading p { margin-top: .8rem; color: var(--text-secondary); }
+.admin-section { margin-top: 2rem; }
+.admin-form { display: grid; gap: 1.25rem; padding: 1.5rem; background: hsla(222, 20%, 12%, .8); border: 1px solid var(--surface-border); border-radius: var(--radius-md); }
+.admin-form label { display: grid; gap: .45rem; color: var(--text-secondary); font-size: .8125rem; font-weight: 600; }
+.admin-form input, .admin-form select { width: 100%; padding: .7rem .8rem; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); font: inherit; outline: none; }
+.admin-form input:focus, .admin-form select:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-dim); }
+.admin-form input[type="file"] { padding: .45rem; }
+.admin-form__actions { display: flex; justify-content: flex-end; gap: .75rem; padding-top: .25rem; }
+.admin-form__status { min-height: 1.4rem; color: var(--text-secondary); font-size: .875rem; }
+.admin-form__status--success { color: var(--color-success); }
+.admin-form__status--error { color: var(--color-danger); }
+@media (max-width: 640px) { .admin-main { padding: 2.5rem 1rem 4rem; } .admin-form { padding: 1rem; } .admin-form__actions { justify-content: stretch; } .admin-form__actions .btn { flex: 1; justify-content: center; } }

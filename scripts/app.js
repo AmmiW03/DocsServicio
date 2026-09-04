@@ -13,6 +13,7 @@ import { ProjectsView }           from './ui/views/ProjectsView.js';
 import { WikiView }               from './ui/views/WikiView.js';
 import { ReleasesView }           from './ui/views/ReleasesView.js';
 import { SupportView }            from './ui/views/SupportView.js';
+import { AdminLicensesView }     from './ui/views/AdminLicensesView.js';
 import { createLogger, initGlobalHandlers } from './lib/logger.js';
 
 const log = createLogger('app');
@@ -67,6 +68,11 @@ async function bootstrap() {
         const [projectId] = params;
         const supportView = new SupportView(appEl, projectId);
         await supportView.init();
+        break;
+      }
+      case 'admin-licenses': {
+        const adminView = new AdminLicensesView(appEl);
+        await adminView.init();
         break;
       }
       default: {
